@@ -16,10 +16,22 @@ TV = "100.126.25.41"
 PHONE = "100.109.199.2"
 
 def via_tunnel(url, timeout=8, method="GET", data=None, headers=None):
-    """Fetch a tailnet URL through the tunnel proxy using curl."""
+    """Fetch a URL. Tries direct HTTP first (for TV node), falls back to tunnel proxy (for muse VM)."""
+    # Try direct first
+    try:
+        import urllib.request
+        req = urllib.request.Request(url, data=json.dumps(data).encode() if data else None, method=method)
+        req.add_header("Content-Type", "application/json")
+        if headers:
+            for k, v in headers.items():
+                req.add_header(k, v)
+        with urllib.request.urlopen(req, timeout=4) as r:
+            return r.status, r.read().decode("utf-8", errors="replace")
+    except Exception:
+        pass
+    # Fall back to tunnel proxy via curl
     proxy = os.environ.get("HTTPS_PROXY", "")
     tunnel = proxy.rsplit(":", 1)[0] + ":3130" if ":" in proxy else ""
-    # strip scheme from proxy for curl
     tunnel = tunnel.split("://")[-1]
     cmd = ["curl", "-s", "-m", str(timeout), "--proxy", tunnel, "-X", method, url]
     if data:
